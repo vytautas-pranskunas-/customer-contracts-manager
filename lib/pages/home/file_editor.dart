@@ -88,6 +88,15 @@ class _FileEditorState extends State<FileEditor> {
                   strokeColor: Colors.blue,
                   backgroundColor: Colors.grey[200],
                 ),
+              if (widget.isTemplate) SizedBox(height: 5.h),
+              if (widget.isTemplate)
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: IconButton(
+                    onPressed: () => _signaturePadKey.currentState?.clear(),
+                    icon: const Icon(Icons.refresh),
+                  ),
+                )
             ]),
             SizedBox(height: 20.h),
             ElevatedButton(
@@ -127,11 +136,15 @@ class _FileEditorState extends State<FileEditor> {
     var image = await _signaturePadKey.currentState!.toImage();
     final bytes = await image.toByteData(format: ImageByteFormat.png);
 
-    for (int i = 0; i < findResult.length; i++) {
-      MatchedItem item = findResult[i];
+    try {
+      MatchedItem item = findResult.last;
       PdfPage page = _document.pages[item.pageIndex];
       page.graphics
           .drawImage(PdfBitmap(bytes!.buffer.asUint8List()), Rect.fromLTWH(item.bounds.left, item.bounds.top, 165, 55));
+    } catch (e) {
+      print(e);
+      /*   PdfPage page = _document.pages.add();
+      page.graphics.drawImage(PdfBitmap(bytes!.buffer.asUint8List()), Rect.fromLTWH(0, 0, 165, 55)); */
     }
   }
 
@@ -150,7 +163,7 @@ class _FileEditorState extends State<FileEditor> {
     var fileNamePrefix = _form.control('failo_pavadinimas').value;
     var fileName = widget.file.path.split('/').last;
     var newName = '${fileNamePrefix}_$fileName';
-    final dir = await getApplicationDocumentsDirectory();
+    final dir = Platform.isIOS ? await getApplicationDocumentsDirectory() : (await getExternalStorageDirectories())![0];
     return '${dir.path}/${Constants.customerContractsFolderName}/$newName';
   }
 
