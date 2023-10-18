@@ -145,10 +145,9 @@ class _FileEditorState extends State<FileEditor> {
   }
 
   _getNewTemplatePath() async {
-    var firstName = _form.control('firstName').value;
-    var lastName = _form.control('lastName').value;
+    var fileNamePrefix = _form.control('failo_pavadinimas').value;
     var fileName = widget.file.path.split('/').last;
-    var newName = '$firstName-${lastName}_$fileName';
+    var newName = '${fileNamePrefix}_$fileName';
     final dir = await getApplicationDocumentsDirectory();
     return '${dir.path}/${Constants.customerContractsFolderName}/$newName';
   }
