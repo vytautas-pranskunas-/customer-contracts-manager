@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="customer_contract_manager"
+        android:label="Contracts Manager"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
