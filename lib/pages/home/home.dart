@@ -26,8 +26,20 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _getAccessToExternalFolders();
     _listOfFiles();
     _listTemplatesFiles();
+  }
+
+  Future<void> _getAccessToExternalFolders() async {
+    var status = await Permission.storage.status;
+    if (status.isDenied) {
+      if (Platform.isAndroid) {
+        await Permission.manageExternalStorage.request();
+      } else {
+        await Permission.storage.request();
+      }
+    }
   }
 
   void _listOfFiles() async {
@@ -153,7 +165,7 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             children: <Widget>[
               ElevatedButton(
-                onPressed: () => _uploadTemplate(setState),
+                onPressed: () async => await _uploadTemplate(setState),
                 child: const Text('Upload new template'),
               ),
               SizedBox(height: 10.h),
@@ -216,11 +228,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   _uploadTemplate(StateSetter setState) async {
-    var status = await Permission.storage.status;
-    if (status.isDenied) {
-      await Permission.storage.request();
-    }
-
     var result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
@@ -239,7 +246,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   static Future<String> createFolderInAppDocDir(String folderName) async {
-    final dir = await getApplicationDocumentsDirectory();
+    final dir = Platform.isIOS ? await getApplicationDocumentsDirectory() : (await getExternalStorageDirectories())![0];
 
     final appDocDirFolder = Directory('${dir.path}/$folderName/');
 

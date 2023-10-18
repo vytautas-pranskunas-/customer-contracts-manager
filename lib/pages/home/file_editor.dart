@@ -72,45 +72,47 @@ class _FileEditorState extends State<FileEditor> {
 
   @override
   Widget build(BuildContext context) {
-    return ReactiveForm(
-      formGroup: _form,
-      child: Column(
-        children: <Widget>[
-          Column(children: <Widget>[
-            ..._formFields,
-            SizedBox(height: 10.h),
-            if (widget.isTemplate)
-              SfSignaturePad(
-                key: _signaturePadKey,
-                minimumStrokeWidth: 1,
-                maximumStrokeWidth: 3,
-                strokeColor: Colors.blue,
-                backgroundColor: Colors.grey[200],
-              ),
-          ]),
-          SizedBox(height: 20.h),
-          ElevatedButton(
-            onPressed: () async {
-              _form.markAllAsTouched();
+    return SingleChildScrollView(
+      child: ReactiveForm(
+        formGroup: _form,
+        child: Column(
+          children: <Widget>[
+            Column(children: <Widget>[
+              ..._formFields,
+              SizedBox(height: 10.h),
+              if (widget.isTemplate)
+                SfSignaturePad(
+                  key: _signaturePadKey,
+                  minimumStrokeWidth: 1,
+                  maximumStrokeWidth: 3,
+                  strokeColor: Colors.blue,
+                  backgroundColor: Colors.grey[200],
+                ),
+            ]),
+            SizedBox(height: 20.h),
+            ElevatedButton(
+              onPressed: () async {
+                _form.markAllAsTouched();
 
-              if (!_form.valid) {
-                return;
-              }
+                if (!_form.valid) {
+                  return;
+                }
 
-              if (widget.isTemplate) {
-                await _addSignatureToForm();
-              }
+                if (widget.isTemplate) {
+                  await _addSignatureToForm();
+                }
 
-              _drawCommentsGrid();
+                _drawCommentsGrid();
 
-              _saveDocument(widget.isTemplate ? await _getNewTemplatePath() : widget.file.path);
+                _saveDocument(widget.isTemplate ? await _getNewTemplatePath() : widget.file.path);
 
-              // ignore: use_build_context_synchronously
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
-          ),
-        ],
+                // ignore: use_build_context_synchronously
+                Navigator.pop(context);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
   }
