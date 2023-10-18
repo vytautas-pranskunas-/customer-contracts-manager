@@ -20,8 +20,10 @@ class FileEditor extends StatefulWidget {
 
 class _FileEditorState extends State<FileEditor> {
   late PdfDocument _document;
-  late FormGroup _form;
+  final _form = FormGroup({});
+  final _formFields = List<ReactiveTextField>.empty(growable: true);
   final String signatureFieldName = 'signature_es_:signatureblock';
+  final String rowEndSign = '<::>';
   final GlobalKey<SfSignaturePadState> _signaturePadKey = GlobalKey();
 
   @override
@@ -42,8 +44,6 @@ class _FileEditorState extends State<FileEditor> {
   }
 
   _buildReactiveFormFromPdf(PdfDocument document) {
-    _form = FormGroup({});
-
     Map<String, FormControl<String>> controls = {};
     for (var i = 0; i < document.form.fields.count; i++) {
       controls.putIfAbsent(
@@ -51,19 +51,23 @@ class _FileEditorState extends State<FileEditor> {
         () => FormControl<String>(
             value: (document.form.fields[i] as PdfTextBoxField).text, validators: [Validators.required]),
       );
-    }
-    _form.addAll(controls);
-  }
 
-  _getReactiveTextFieldFromForm() sync* {
-    for (var i = 0; i < _document.form.fields.count; i++) {
-      yield ReactiveTextField(
+      _formFields.add(ReactiveTextField(
         decoration: InputDecoration(
-          labelText: _document.form.fields[i].name!,
+          labelText: document.form.fields[i].name!,
         ),
-        formControlName: _document.form.fields[i].name!,
-      );
+        formControlName: document.form.fields[i].name!,
+      ));
     }
+
+    controls.putIfAbsent('comment', () => FormControl<String>(value: ''));
+    _formFields.add(ReactiveTextField(
+      maxLines: 3,
+      decoration: const InputDecoration(labelText: 'Comment'),
+      formControlName: 'comment',
+    ));
+
+    _form.addAll(controls);
   }
 
   @override
@@ -72,16 +76,18 @@ class _FileEditorState extends State<FileEditor> {
       formGroup: _form,
       child: Column(
         children: <Widget>[
-          ..._getReactiveTextFieldFromForm(),
-          if (widget.isTemplate) SizedBox(height: 10.h),
-          if (widget.isTemplate)
-            SfSignaturePad(
-              key: _signaturePadKey,
-              minimumStrokeWidth: 1,
-              maximumStrokeWidth: 3,
-              strokeColor: Colors.blue,
-              backgroundColor: Colors.grey[200],
-            ),
+          Column(children: <Widget>[
+            ..._formFields,
+            SizedBox(height: 10.h),
+            if (widget.isTemplate)
+              SfSignaturePad(
+                key: _signaturePadKey,
+                minimumStrokeWidth: 1,
+                maximumStrokeWidth: 3,
+                strokeColor: Colors.blue,
+                backgroundColor: Colors.grey[200],
+              ),
+          ]),
           SizedBox(height: 20.h),
           ElevatedButton(
             onPressed: () async {
@@ -94,6 +100,8 @@ class _FileEditorState extends State<FileEditor> {
               if (widget.isTemplate) {
                 await _addSignatureToForm();
               }
+
+              _drawCommentsGrid();
 
               _saveDocument(widget.isTemplate ? await _getNewTemplatePath() : widget.file.path);
 
@@ -108,8 +116,8 @@ class _FileEditorState extends State<FileEditor> {
   }
 
   _addSignatureToForm() async {
-    PdfTextExtractor extractor = PdfTextExtractor(_document);
-    List<MatchedItem> findResult = extractor.findText([signatureFieldName]);
+    var extractor = PdfTextExtractor(_document);
+    var findResult = extractor.findText([signatureFieldName]);
     if (findResult.isEmpty) {
       return;
     }
@@ -119,26 +127,10 @@ class _FileEditorState extends State<FileEditor> {
 
     for (int i = 0; i < findResult.length; i++) {
       MatchedItem item = findResult[i];
-      //Get page.
       PdfPage page = _document.pages[item.pageIndex];
-      //Set transparency to the page graphics.
-      /*  page.graphics.save();
-      page.graphics.setTransparency(0.5); */
-      //Draw rectangle to highlight the text.
       page.graphics
           .drawImage(PdfBitmap(bytes!.buffer.asUint8List()), Rect.fromLTWH(item.bounds.left, item.bounds.top, 165, 55));
-      /*  page.graphics.drawRectangle(bounds: item.bounds, brush: PdfBrushes.yellow);
-      page.graphics.restore(); */
     }
-    /* for (var i = 0; i < _document.form.fields.count; i++) {
-      var image = await _signaturePadKey.currentState!.toImage(pixelRatio: 3.0);
-      final bytes = await image.toByteData(format: ImageByteFormat.png);
-      (_document.form.fields[i] as PdfSignatureField)
-          .appearance
-          .normal
-          .graphics!
-          .drawImage(PdfBitmap(bytes!.buffer.asUint8List()), const Rect.fromLTWH(0, 0, 250, 200));
-    } */
   }
 
   _saveDocument(String path) {
@@ -159,5 +151,48 @@ class _FileEditorState extends State<FileEditor> {
     var newName = '$firstName-${lastName}_$fileName';
     final dir = await getApplicationDocumentsDirectory();
     return '${dir.path}/${Constants.customerContractsFolderName}/$newName';
+  }
+
+  _drawCommentsGrid() {
+    var value = _form.control('comment').value;
+    if (value.isEmpty) {
+      return;
+    }
+
+    var columns = value.split('||');
+
+    final grid = PdfGrid();
+    grid.columns.add(count: columns.length);
+    var row = grid.rows.add();
+
+    var longestValueIndex = 0;
+    for (var i = 0; i < columns.length; i++) {
+      row.cells[i].value = columns[i];
+      row.cells[i].style.backgroundBrush = PdfBrushes.white;
+
+      if (columns[i].length > columns[longestValueIndex].length) {
+        longestValueIndex = i;
+      }
+    }
+
+    row.cells[longestValueIndex].value += '${row.cells[longestValueIndex].value} $rowEndSign';
+    //<:-:>
+
+    grid.style.cellPadding = PdfPaddings(left: 5, top: 5);
+
+    var extractor = PdfTextExtractor(_document);
+    var findResult = extractor.findText([rowEndSign]);
+    if (findResult.isEmpty) {
+      return;
+    }
+
+    MatchedItem item = findResult.last;
+    PdfPage page = _document.pages[item.pageIndex];
+
+    try {
+      grid.draw(page: page, bounds: Rect.fromLTWH(36, item.bounds.bottom + 4, page.getClientSize().width - 36, 0));
+    } catch (e) {
+      grid.draw(page: _document.pages.add(), bounds: Rect.fromLTWH(0, 0, page.getClientSize().width - 36, 0));
+    }
   }
 }

@@ -20,6 +20,8 @@ class _HomePageState extends State<HomePage> {
   var files = List<FileSystemEntity>.empty();
   var templates = List<FileSystemEntity>.empty();
   late String directory;
+  bool isSearchOpen = false;
+  String searchText = '';
 
   @override
   void initState() {
@@ -35,7 +37,7 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _listTemplatesFiles() async {
+  Future<void> _listTemplatesFiles() async {
     directory = await createFolderInAppDocDir(Constants.templateFolderName);
     setState(() {
       templates = Directory(directory).listSync();
@@ -44,11 +46,71 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    var filteredFiles = _filterFiles();
     return Scaffold(
       appBar: AppBar(elevation: 2),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _chooseTemplate(),
-        child: const Icon(Icons.add),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: <Widget>[
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            child: isSearchOpen
+                ? Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * .8,
+                      minWidth: MediaQuery.of(context).size.width * .5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: TextFormField(
+                      initialValue: searchText,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Search...',
+                        suffixIcon: searchText.isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: () {
+                                  setState(() {
+                                    searchText = '';
+                                    isSearchOpen = false;
+                                  });
+                                },
+                                icon: const Icon(Icons.close),
+                              ),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          searchText = value;
+                        });
+                      },
+                      onEditingComplete: () {
+                        setState(() {
+                          isSearchOpen = false;
+                        });
+                      },
+                    ),
+                  )
+                : FloatingActionButton(
+                    onPressed: () {
+                      setState(() {
+                        isSearchOpen = true;
+                      });
+                    },
+                    child: const Icon(Icons.search),
+                  ),
+          ),
+          SizedBox(height: 10.h),
+          FloatingActionButton(
+            onPressed: () => _chooseTemplate(),
+            child: const Icon(Icons.add),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(8.0),
@@ -56,22 +118,31 @@ class _HomePageState extends State<HomePage> {
           children: [
             Expanded(
               child: ListView.builder(
-                  itemCount: files.length,
+                  itemCount: filteredFiles.length,
                   itemBuilder: (BuildContext context, int index) {
-                    return _fileCardItem(files[index]);
+                    return _fileCardItem(filteredFiles[index]);
                   }),
-            )
+            ),
           ],
         ),
       ),
     );
   }
 
+  _filterFiles() {
+    if (searchText.isEmpty || searchText.length < 3) {
+      return files;
+    }
+
+    return files.where((element) => element.path.contains(searchText)).toList();
+  }
+
   _chooseTemplate() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (BuildContext builder) => Container(
+      builder: (BuildContext builder) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) => Container(
           constraints: BoxConstraints(
             minHeight: MediaQuery.of(context).size.height * .9,
             maxHeight: MediaQuery.of(context).size.height * .9,
@@ -82,7 +153,7 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             children: <Widget>[
               ElevatedButton(
-                onPressed: () => _uploadTemplate(),
+                onPressed: () => _uploadTemplate(setState),
                 child: const Text('Upload new template'),
               ),
               SizedBox(height: 10.h),
@@ -94,7 +165,9 @@ class _HomePageState extends State<HomePage> {
                     }),
               ),
             ],
-          )),
+          ),
+        ),
+      ),
     );
   }
 
@@ -142,7 +215,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  _uploadTemplate() async {
+  _uploadTemplate(StateSetter setState) async {
     var status = await Permission.storage.status;
     if (status.isDenied) {
       await Permission.storage.request();
@@ -161,7 +234,8 @@ class _HomePageState extends State<HomePage> {
     var file = File(result.files.single.path!);
     await file.copy('$templateDir/${result.files.single.name}');
     showToast('Template uploaded successfully!', backgroundColor: Colors.green);
-    _listTemplatesFiles();
+    await _listTemplatesFiles();
+    setState(() {});
   }
 
   static Future<String> createFolderInAppDocDir(String folderName) async {
